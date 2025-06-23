@@ -1,0 +1,16 @@
+Implementation driven by workshop requirements:
+- Must work on student laptops with unknown configurations
+- Network environments vary (corporate proxies, firewalls)
+- Cloud environments have unique constraints (Replit, Codespaces)
+- Students may have partial tool installations
+
+Design decisions:
+- Visual feedback with emojis for quick scanning
+- Platform-specific fix commands reduce friction
+- JSON report helps instructors debug remotely
+- Non-fatal warnings for optional components
+
+Testing approach:
+- Manually tested on macOS ARM64, Linux x64, WSL2
+- Simulated missing tools by PATH manipulation
+- Verified fix commands on each platform
