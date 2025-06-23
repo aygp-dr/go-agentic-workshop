@@ -1,0 +1,22 @@
+Framework design philosophy:
+- Errors are learning opportunities in workshops
+- Rich context helps students debug independently
+- Typed errors prevent string comparison bugs
+- Suggestions guide students to solutions
+
+Production considerations:
+- Stack traces essential for agent debugging
+- Retry logic teaches resilience patterns
+- JSON output integrates with observability
+- Error categories mirror real-world failures
+
+Workshop-specific features:
+- Platform-aware suggestions (e.g., AWS auth differs on Windows)
+- Retryable flag teaches transient vs permanent failures
+- Cost errors highlight real-world constraints
+- Context accumulation shows debugging techniques
+
+Testing strategy:
+- Unit tests cover all error types
+- Integration tests verify retry logic
+- Benchmarks ensure error creation is cheap
