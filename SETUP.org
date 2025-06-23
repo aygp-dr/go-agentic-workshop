@@ -1,0 +1,920 @@
+#+TITLE: Building and Deploying AI Agents with Go - Workshop
+#+AUTHOR: [Your Name]
+#+DATE: <2025-06-23 Mon>
+#+STARTUP: overview
+#+PROPERTY: header-args :mkdirp t
+#+PROPERTY: header-args:mermaid :exports results :eval never-export
+#+OPTIONS: toc:3 num:t
+
+* Workshop Overview
+:PROPERTIES:
+:CUSTOM_ID: overview
+:END:
+
+** Metadata
+- *Level:* Advanced
+- *Duration:* Half-Day (4 hours)
+- *Target Audience:* Experienced Go developers
+- *Focus:* Production-ready AI agent workflows
+
+** Learning Objectives
+:PROPERTIES:
+:CUSTOM_ID: objectives
+:END:
+
+#+begin_src mermaid :file images/learning-path.png
+graph LR
+    A[AI Agents Fundamentals] --> B[LLM Integration]
+    B --> C[Agentic Workflows]
+    C --> D[Production Deployment]
+    D --> E[Scaling & Observability]
+    
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style E fill:#9f9,stroke:#333,stroke-width:2px
+#+end_src
+
+* Prerequisites & Setup
+:PROPERTIES:
+:CUSTOM_ID: prerequisites
+:END:
+
+** Required Tools
+*** TODO Install Go 1.24+
+*** TODO Configure AWS CLI
+*** TODO Install Docker
+*** TODO Setup Ollama
+*** TODO Install pgvector
+*** TODO Configure GitHub Account
+
+** Environment Setup Script
+:PROPERTIES:
+:header-args:bash: :tangle setup/check-environment.sh :shebang #!/bin/bash
+:END:
+
+#+begin_src bash
+# Environment validation script
+echo "🔍 Checking workshop prerequisites..."
+
+# Check Go version
+GO_VERSION=$(go version | awk '{print $3}' | sed 's/go//')
+echo "✓ Go version: $GO_VERSION"
+
+# Check AWS CLI
+if command -v aws &> /dev/null; then
+    echo "✓ AWS CLI installed"
+else
+    echo "❌ AWS CLI not found"
+fi
+
+# Check Docker
+if command -v docker &> /dev/null; then
+    echo "✓ Docker installed"
+else
+    echo "❌ Docker not found"
+fi
+
+# Check Ollama
+if command -v ollama &> /dev/null; then
+    echo "✓ Ollama installed"
+else
+    echo "❌ Ollama not found"
+fi
+#+end_src
+
+* Module 1: Introduction to AI Agents & Workflows
+:PROPERTIES:
+:CUSTOM_ID: module-1
+:END:
+
+** When RAG is Not Enough
+:PROPERTIES:
+:CUSTOM_ID: beyond-rag
+:END:
+
+#+begin_src mermaid :file images/rag-vs-agents.png
+graph TD
+    subgraph "RAG Pattern"
+        Q1[Query] --> R1[Retrieve]
+        R1 --> A1[Augment]
+        A1 --> G1[Generate]
+    end
+    
+    subgraph "Agentic Pattern"
+        Q2[Goal] --> P[Plan]
+        P --> E[Execute]
+        E --> O[Observe]
+        O --> P
+        O --> C[Complete]
+    end
+    
+    style Q1 fill:#faa
+    style Q2 fill:#afa
+#+end_src
+
+*** Limitations of RAG
+- Static retrieval patterns
+- No multi-step reasoning
+- Limited context adaptation
+- No autonomous decision making
+
+** Agent Architecture Components
+:PROPERTIES:
+:CUSTOM_ID: agent-architecture
+:END:
+
+#+begin_src mermaid :file images/agent-architecture.png
+graph TB
+    subgraph "Agent Core"
+        LLM[LLM Engine]
+        Memory[Memory System]
+        Tools[Function Registry]
+        State[State Manager]
+    end
+    
+    subgraph "External Systems"
+        KB[Knowledge Base]
+        APIs[External APIs]
+        DB[(Database)]
+    end
+    
+    User[User Input] --> LLM
+    LLM <--> Memory
+    LLM <--> Tools
+    LLM <--> State
+    Tools <--> APIs
+    Tools <--> KB
+    Tools <--> DB
+    
+    style LLM fill:#bbf,stroke:#333,stroke-width:4px
+#+end_src
+
+** Agent Types and Use Cases
+:PROPERTIES:
+:header-args:go: :tangle examples/agent-types.go
+:END:
+
+#+begin_src go
+package examples
+
+// AgentType represents different categories of AI agents
+type AgentType string
+
+const (
+    // ReActAgent uses Reasoning and Acting pattern
+    ReActAgent AgentType = "react"
+    
+    // PlanExecuteAgent creates plans then executes them
+    PlanExecuteAgent AgentType = "plan-execute"
+    
+    // ToolCallingAgent focuses on function execution
+    ToolCallingAgent AgentType = "tool-calling"
+    
+    // ConversationalAgent maintains dialogue context
+    ConversationalAgent AgentType = "conversational"
+)
+
+// AgentCapabilities defines what an agent can do
+type AgentCapabilities struct {
+    CanPlan          bool
+    CanExecuteTools  bool
+    HasMemory        bool
+    SupportsAsync    bool
+}
+#+end_src
+
+* Module 2: Calling LLMs & Managing Function Execution
+:PROPERTIES:
+:CUSTOM_ID: module-2
+:END:
+
+** AWS Bedrock Integration
+:PROPERTIES:
+:header-args:go: :tangle pkg/bedrock/client.go :mkdirp t
+:END:
+
+#+begin_src go
+package bedrock
+
+import (
+    "context"
+    "encoding/json"
+    
+    "github.com/aws/aws-sdk-go-v2/config"
+    "github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
+)
+
+// Client wraps AWS Bedrock Runtime client
+type Client struct {
+    bedrock *bedrockruntime.Client
+    config  *Config
+}
+
+// Config holds Bedrock configuration
+type Config struct {
+    Region      string
+    ModelID     string
+    MaxTokens   int
+    Temperature float32
+}
+
+// NewClient creates a new Bedrock client
+func NewClient(ctx context.Context, cfg *Config) (*Client, error) {
+    awsCfg, err := config.LoadDefaultConfig(ctx, 
+        config.WithRegion(cfg.Region))
+    if err != nil {
+        return nil, err
+    }
+    
+    return &Client{
+        bedrock: bedrockruntime.NewFromConfig(awsCfg),
+        config:  cfg,
+    }, nil
+}
+#+end_src
+
+** Request/Response Flow
+:PROPERTIES:
+:CUSTOM_ID: request-flow
+:END:
+
+#+begin_src mermaid :file images/llm-request-flow.png
+sequenceDiagram
+    participant A as Agent
+    participant F as Function Registry
+    participant L as LLM Client
+    participant B as Bedrock/Ollama
+    participant C as Cache
+    
+    A->>C: Check cache
+    alt Cache hit
+        C-->>A: Return cached response
+    else Cache miss
+        A->>F: Prepare tools manifest
+        A->>L: Format request
+        L->>B: Send API request
+        alt Streaming
+            loop Stream chunks
+                B-->>L: Response chunk
+                L-->>A: Process chunk
+            end
+        else Batch
+            B-->>L: Complete response
+            L-->>A: Parse response
+        end
+        A->>C: Update cache
+    end
+#+end_src
+
+** Function Calling Implementation
+:PROPERTIES:
+:header-args:go: :tangle pkg/functions/registry.go :mkdirp t
+:END:
+
+#+begin_src go
+package functions
+
+import (
+    "context"
+    "encoding/json"
+    "fmt"
+    "reflect"
+)
+
+// Function represents a callable function
+type Function struct {
+    Name        string
+    Description string
+    Parameters  json.RawMessage
+    Handler     interface{}
+}
+
+// Registry manages available functions
+type Registry struct {
+    functions map[string]*Function
+}
+
+// NewRegistry creates a new function registry
+func NewRegistry() *Registry {
+    return &Registry{
+        functions: make(map[string]*Function),
+    }
+}
+
+// Register adds a function to the registry
+func (r *Registry) Register(fn *Function) error {
+    if _, exists := r.functions[fn.Name]; exists {
+        return fmt.Errorf("function %s already registered", fn.Name)
+    }
+    
+    // Validate handler is a function
+    if reflect.TypeOf(fn.Handler).Kind() != reflect.Func {
+        return fmt.Errorf("handler must be a function")
+    }
+    
+    r.functions[fn.Name] = fn
+    return nil
+}
+#+end_src
+
+** Cost Optimization Strategies
+:PROPERTIES:
+:CUSTOM_ID: cost-optimization
+:END:
+
+#+begin_src mermaid :file images/cost-optimization.png
+graph LR
+    subgraph "Cost Reduction"
+        Cache[Response Caching]
+        Batch[Request Batching]
+        Model[Model Selection]
+        Prompt[Prompt Optimization]
+    end
+    
+    subgraph "Monitoring"
+        Tokens[Token Usage]
+        Latency[Response Time]
+        Errors[Error Rate]
+    end
+    
+    Cache --> Tokens
+    Batch --> Tokens
+    Model --> Tokens
+    Prompt --> Tokens
+    
+    style Tokens fill:#faa
+#+end_src
+
+* Module 3: Implementing Agentic Workflows with Go
+:PROPERTIES:
+:CUSTOM_ID: module-3
+:END:
+
+** Workflow State Management
+:PROPERTIES:
+:header-args:go: :tangle pkg/workflow/state.go :mkdirp t
+:END:
+
+#+begin_src go
+package workflow
+
+import (
+    "context"
+    "encoding/json"
+    "time"
+)
+
+// WorkflowState represents the current state of a workflow
+type WorkflowState struct {
+    ID          string                 `json:"id"`
+    Status      Status                 `json:"status"`
+    CurrentStep string                 `json:"current_step"`
+    Context     map[string]interface{} `json:"context"`
+    History     []Step                 `json:"history"`
+    CreatedAt   time.Time              `json:"created_at"`
+    UpdatedAt   time.Time              `json:"updated_at"`
+}
+
+// Status represents workflow status
+type Status string
+
+const (
+    StatusPending   Status = "pending"
+    StatusRunning   Status = "running"
+    StatusCompleted Status = "completed"
+    StatusFailed    Status = "failed"
+)
+
+// Step represents a workflow step
+type Step struct {
+    Name      string                 `json:"name"`
+    Action    string                 `json:"action"`
+    Input     map[string]interface{} `json:"input"`
+    Output    map[string]interface{} `json:"output"`
+    StartedAt time.Time              `json:"started_at"`
+    EndedAt   time.Time              `json:"ended_at"`
+}
+#+end_src
+
+** Multi-Step Automation Pattern
+:PROPERTIES:
+:CUSTOM_ID: multi-step
+:END:
+
+#+begin_src mermaid :file images/multi-step-workflow.png
+stateDiagram-v2
+    [*] --> Initialize
+    Initialize --> Planning: Goal Received
+    
+    Planning --> Validation: Plan Created
+    Validation --> Planning: Invalid Plan
+    Validation --> Execution: Valid Plan
+    
+    state Execution {
+        [*] --> NextStep
+        NextStep --> CheckTools: Has More Steps
+        NextStep --> Complete: No More Steps
+        
+        CheckTools --> ExecuteTool: Tool Required
+        CheckTools --> LLMProcess: No Tool Required
+        
+        ExecuteTool --> UpdateState
+        LLMProcess --> UpdateState
+        UpdateState --> NextStep
+    }
+    
+    Execution --> Monitoring: Step Complete
+    Monitoring --> Execution: Continue
+    Monitoring --> Error: Failure Detected
+    
+    Complete --> [*]
+    Error --> [*]
+#+end_src
+
+** Background Task Orchestration
+:PROPERTIES:
+:header-args:go: :tangle pkg/orchestrator/sqs.go :mkdirp t
+:END:
+
+#+begin_src go
+package orchestrator
+
+import (
+    "context"
+    "encoding/json"
+    
+    "github.com/aws/aws-sdk-go-v2/service/sqs"
+)
+
+// TaskMessage represents a task in SQS
+type TaskMessage struct {
+    WorkflowID string                 `json:"workflow_id"`
+    TaskType   string                 `json:"task_type"`
+    Payload    map[string]interface{} `json:"payload"`
+    Priority   int                    `json:"priority"`
+}
+
+// SQSOrchestrator handles async task execution
+type SQSOrchestrator struct {
+    client   *sqs.Client
+    queueURL string
+}
+
+// EnqueueTask adds a task to the queue
+func (o *SQSOrchestrator) EnqueueTask(ctx context.Context, task *TaskMessage) error {
+    body, err := json.Marshal(task)
+    if err != nil {
+        return err
+    }
+    
+    _, err = o.client.SendMessage(ctx, &sqs.SendMessageInput{
+        QueueUrl:    &o.queueURL,
+        MessageBody: aws.String(string(body)),
+    })
+    
+    return err
+}
+#+end_src
+
+* Module 4: Deploying & Scaling
+:PROPERTIES:
+:CUSTOM_ID: module-4
+:END:
+
+** Deployment Architecture
+:PROPERTIES:
+:CUSTOM_ID: deployment
+:END:
+
+#+begin_src mermaid :file images/deployment-architecture.png
+graph TB
+    subgraph "Client Layer"
+        Web[Web App]
+        Mobile[Mobile App]
+        API[API Clients]
+    end
+    
+    subgraph "API Gateway"
+        ALB[Load Balancer]
+        RateLimit[Rate Limiter]
+    end
+    
+    subgraph "Application Layer"
+        Agent1[Agent Service 1]
+        Agent2[Agent Service 2]
+        Agent3[Agent Service N]
+    end
+    
+    subgraph "Queue Layer"
+        SQS[SQS Queue]
+        DLQ[Dead Letter Queue]
+    end
+    
+    subgraph "Processing Layer"
+        Lambda1[Lambda Worker 1]
+        Lambda2[Lambda Worker 2]
+        Lambda3[Lambda Worker N]
+    end
+    
+    subgraph "Storage Layer"
+        DynamoDB[(DynamoDB)]
+        S3[(S3 Bucket)]
+        Cache[(ElastiCache)]
+    end
+    
+    subgraph "AI Services"
+        Bedrock[AWS Bedrock]
+        Ollama[Ollama Instance]
+    end
+    
+    Web --> ALB
+    Mobile --> ALB
+    API --> ALB
+    
+    ALB --> RateLimit
+    RateLimit --> Agent1
+    RateLimit --> Agent2
+    RateLimit --> Agent3
+    
+    Agent1 --> SQS
+    Agent2 --> SQS
+    Agent3 --> SQS
+    
+    SQS --> Lambda1
+    SQS --> Lambda2
+    SQS --> Lambda3
+    SQS -.-> DLQ
+    
+    Lambda1 --> Bedrock
+    Lambda2 --> Bedrock
+    Lambda3 --> Ollama
+    
+    Agent1 --> Cache
+    Lambda1 --> DynamoDB
+    Lambda2 --> S3
+    
+    style Bedrock fill:#ff9
+    style Ollama fill:#9ff
+#+end_src
+
+** Caching Strategy
+:PROPERTIES:
+:header-args:go: :tangle pkg/cache/cache.go :mkdirp t
+:END:
+
+#+begin_src go
+package cache
+
+import (
+    "context"
+    "crypto/sha256"
+    "encoding/hex"
+    "encoding/json"
+    "time"
+)
+
+// CacheKey generates a cache key from request parameters
+func CacheKey(model string, prompt string, params map[string]interface{}) string {
+    data := struct {
+        Model  string                 `json:"model"`
+        Prompt string                 `json:"prompt"`
+        Params map[string]interface{} `json:"params"`
+    }{
+        Model:  model,
+        Prompt: prompt,
+        Params: params,
+    }
+    
+    bytes, _ := json.Marshal(data)
+    hash := sha256.Sum256(bytes)
+    return hex.EncodeToString(hash[:])
+}
+
+// ResponseCache interface for LLM response caching
+type ResponseCache interface {
+    Get(ctx context.Context, key string) (*CachedResponse, error)
+    Set(ctx context.Context, key string, response *CachedResponse, ttl time.Duration) error
+    Delete(ctx context.Context, key string) error
+}
+
+// CachedResponse represents a cached LLM response
+type CachedResponse struct {
+    Content   string    `json:"content"`
+    Model     string    `json:"model"`
+    Tokens    int       `json:"tokens"`
+    CachedAt  time.Time `json:"cached_at"`
+}
+#+end_src
+
+** Observability Setup
+:PROPERTIES:
+:CUSTOM_ID: observability
+:END:
+
+#+begin_src mermaid :file images/observability-stack.png
+graph LR
+    subgraph "Application"
+        App[Go Agent Service]
+        OT[OpenTelemetry SDK]
+    end
+    
+    subgraph "Telemetry Pipeline"
+        Collector[OTEL Collector]
+        Queue[Metrics Queue]
+    end
+    
+    subgraph "Storage & Viz"
+        Prometheus[(Prometheus)]
+        Loki[(Loki)]
+        Tempo[(Tempo)]
+        Grafana[Grafana Dashboard]
+    end
+    
+    App --> OT
+    OT --> Collector
+    
+    Collector --> Prometheus
+    Collector --> Loki
+    Collector --> Tempo
+    Collector --> Queue
+    
+    Prometheus --> Grafana
+    Loki --> Grafana
+    Tempo --> Grafana
+    
+    style Grafana fill:#9f9
+#+end_src
+
+** Monitoring Implementation
+:PROPERTIES:
+:header-args:go: :tangle pkg/observability/metrics.go :mkdirp t
+:END:
+
+#+begin_src go
+package observability
+
+import (
+    "context"
+    "time"
+    
+    "go.opentelemetry.io/otel"
+    "go.opentelemetry.io/otel/attribute"
+    "go.opentelemetry.io/otel/metric"
+)
+
+// Metrics holds all application metrics
+type Metrics struct {
+    // LLM metrics
+    llmRequestDuration metric.Float64Histogram
+    llmTokensUsed      metric.Int64Counter
+    llmErrors          metric.Int64Counter
+    
+    // Workflow metrics
+    workflowDuration   metric.Float64Histogram
+    workflowSteps      metric.Int64Counter
+    activeWorkflows    metric.Int64UpDownCounter
+}
+
+// NewMetrics creates a new metrics instance
+func NewMetrics(meter metric.Meter) (*Metrics, error) {
+    llmRequestDuration, err := meter.Float64Histogram(
+        "llm.request.duration",
+        metric.WithDescription("LLM request duration in seconds"),
+        metric.WithUnit("s"),
+    )
+    if err != nil {
+        return nil, err
+    }
+    
+    llmTokensUsed, err := meter.Int64Counter(
+        "llm.tokens.used",
+        metric.WithDescription("Total tokens used"),
+    )
+    if err != nil {
+        return nil, err
+    }
+    
+    return &Metrics{
+        llmRequestDuration: llmRequestDuration,
+        llmTokensUsed:      llmTokensUsed,
+    }, nil
+}
+
+// RecordLLMRequest records metrics for an LLM request
+func (m *Metrics) RecordLLMRequest(ctx context.Context, model string, duration time.Duration, tokens int64) {
+    m.llmRequestDuration.Record(ctx, duration.Seconds(),
+        metric.WithAttributes(
+            attribute.String("model", model),
+        ),
+    )
+    
+    m.llmTokensUsed.Add(ctx, tokens,
+        metric.WithAttributes(
+            attribute.String("model", model),
+        ),
+    )
+}
+#+end_src
+
+* Module 5: Hands-On Labs
+:PROPERTIES:
+:CUSTOM_ID: labs
+:END:
+
+** Lab 1: Basic Agent Implementation
+:PROPERTIES:
+:CUSTOM_ID: lab-1
+:END:
+
+*** TODO Create simple tool-calling agent
+*** TODO Implement function registry
+*** TODO Test with Ollama locally
+
+** Lab 2: Multi-Step Workflow
+:PROPERTIES:
+:CUSTOM_ID: lab-2
+:END:
+
+*** TODO Build research agent workflow
+*** TODO Implement state persistence
+*** TODO Add error handling
+
+** Lab 3: Production Deployment
+:PROPERTIES:
+:CUSTOM_ID: lab-3
+:END:
+
+*** TODO Deploy to AWS Lambda
+*** TODO Configure SQS queues
+*** TODO Setup monitoring
+
+* Workshop Resources
+:PROPERTIES:
+:CUSTOM_ID: resources
+:END:
+
+** Code Repository Structure
+:PROPERTIES:
+:CUSTOM_ID: repo-structure
+:END:
+
+#+begin_src text :tangle .gitignore
+# Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+bin/
+
+# Test binary
+*.test
+
+# Output of go coverage
+*.out
+
+# Dependency directories
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+
+# Generated files
+images/*.png
+dist/
+
+# OS
+.DS_Store
+Thumbs.db
+#+end_src
+
+#+begin_src yaml :tangle docker-compose.yml
+version: '3.8'
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      
+  postgres:
+    image: pgvector/pgvector:pg16
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=workshop
+      - POSTGRES_USER=workshop
+      - POSTGRES_PASSWORD=workshop
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  localstack:
+    image: localstack/localstack:latest
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=sqs,dynamodb,s3
+      - DEBUG=1
+    volumes:
+      - localstack_data:/var/lib/localstack
+
+volumes:
+  ollama_data:
+  postgres_data:
+  localstack_data:
+#+end_src
+
+** Additional Resources
+- [[https://docs.aws.amazon.com/bedrock/][AWS Bedrock Documentation]]
+- [[https://ollama.ai/][Ollama Documentation]]
+- [[https://opentelemetry.io/docs/languages/go/][OpenTelemetry Go Guide]]
+- [[https://github.com/pgvector/pgvector][pgvector Documentation]]
+
+* Appendix
+:PROPERTIES:
+:CUSTOM_ID: appendix
+:END:
+
+** Troubleshooting Guide
+:PROPERTIES:
+:CUSTOM_ID: troubleshooting
+:END:
+
+*** Common Issues
+1. AWS credentials not configured
+2. Ollama model not downloaded
+3. Port conflicts with local services
+4. Memory constraints for local LLMs
+
+** Performance Benchmarks
+:PROPERTIES:
+:header-args:go: :tangle benchmarks/bench_test.go :mkdirp t
+:END:
+
+#+begin_src go
+package benchmarks
+
+import (
+    "testing"
+)
+
+func BenchmarkLLMRequest(b *testing.B) {
+    // Benchmark different model configurations
+    b.Run("Small Model", func(b *testing.B) {
+        for i := 0; i < b.N; i++ {
+            // Benchmark code here
+        }
+    })
+    
+    b.Run("Large Model", func(b *testing.B) {
+        for i := 0; i < b.N; i++ {
+            // Benchmark code here
+        }
+    })
+}
+#+end_src
+
+** Security Considerations
+:PROPERTIES:
+:CUSTOM_ID: security
+:END:
+
+#+begin_src mermaid :file images/security-layers.png
+graph TD
+    subgraph "Security Layers"
+        Auth[Authentication]
+        AuthZ[Authorization]
+        Encrypt[Encryption]
+        Audit[Audit Logging]
+        RateLimit[Rate Limiting]
+        InputVal[Input Validation]
+    end
+    
+    subgraph "Threats"
+        Injection[Prompt Injection]
+        Leak[Data Leakage]
+        DOS[DoS Attacks]
+        Abuse[Model Abuse]
+    end
+    
+    Auth --> Injection
+    AuthZ --> Leak
+    Encrypt --> Leak
+    Audit --> Abuse
+    RateLimit --> DOS
+    InputVal --> Injection
+    
+    style Injection fill:#faa
+    style Leak fill:#faa
+    style DOS fill:#faa
+    style Abuse fill:#faa
+#+end_src
