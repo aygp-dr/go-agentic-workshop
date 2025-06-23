@@ -1,0 +1,16 @@
+Development considerations:
+- Started with CI/CD to ensure quality gates from the beginning
+- GitHub Actions chosen for broad accessibility vs self-hosted runners
+- Matrix testing critical given diverse target platforms (Darwin ARM64, Linux ARM64, FreeBSD AMD64, cloud environments)
+- Daily scheduled runs catch dependency drift early
+- Security scanning integrated to teach secure coding practices
+
+Validation approach:
+- Tested workflow syntax with actionlint
+- Verified matrix combinations don't explode CI minutes
+- Included fail-fast:false to get full platform coverage data
+
+Issues anticipated:
+- ARM64 runners might be slower/unavailable
+- Windows paths need careful handling
+- Docker not available on all platforms (FreeBSD, Replit)
