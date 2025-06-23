@@ -1,0 +1,22 @@
+Instructional design principles:
+- 4-hour workshop = 4 focused modules
+- Each module buildable in isolation
+- Time boxes prevent rabbit holes
+- Mix of theory (20%) and hands-on (80%)
+
+Module 1 structure reasoning:
+- Environment setup first to catch issues early
+- Conceptual foundation before coding
+- Quick win with calculator agent
+- Backup plans for common failures
+
+Content considerations:
+- Academic papers provide depth for advanced students
+- Common issues section based on pilot workshop feedback
+- Platform-specific solutions from real testing
+- Instructor notes capture tacit knowledge
+
+Directory structure supports:
+- Instructor-led presentation (slides/)
+- Self-paced learning (exercises/, solutions/)
+- Automated validation (tests/)
