@@ -1,0 +1,238 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 0 * * *'  # Daily validation
+
+env:
+  GO_VERSION_LATEST: "1.23"
+  DOCKER_BUILDKIT: 1
+
+jobs:
+  matrix-test:
+    name: Test Go ${{ matrix.go }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: 
+          - ubuntu-latest
+          - ubuntu-22.04
+          - ubuntu-20.04
+          - macos-latest
+          - macos-13  # Intel
+          - windows-latest
+        go: 
+          - "1.21"
+          - "1.22"
+          - "1.23"
+        exclude:
+          # Skip older Go on newer OS
+          - os: macos-latest
+            go: "1.21"
+          - os: windows-latest
+            go: "1.21"
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ matrix.go }}
+        cache: true
+    
+    - name: Install dependencies
+      run: |
+        go mod download
+        go mod verify
+    
+    - name: Run tests
+      run: |
+        go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+        go tool cover -func=coverage.out
+    
+    - name: Upload coverage
+      if: matrix.os == 'ubuntu-latest' && matrix.go == env.GO_VERSION_LATEST
+      uses: codecov/codecov-action@v4
+      with:
+        files: ./coverage.out
+        flags: unittests
+    
+    - name: Build binary
+      run: go build -v ./cmd/agent
+
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: workshop
+          POSTGRES_PASSWORD: workshop
+          POSTGRES_DB: workshop
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION_LATEST }}
+        cache: true
+    
+    - name: Start LocalStack
+      run: |
+        docker run -d \
+          --name localstack \
+          -p 4566:4566 \
+          -e SERVICES=sqs,dynamodb,s3 \
+          localstack/localstack:latest
+        
+        # Wait for LocalStack
+        timeout 60 bash -c 'until curl -s http://localhost:4566/_localstack/health | grep -q "running"; do sleep 1; done'
+    
+    - name: Run integration tests
+      env:
+        AWS_ENDPOINT: http://localhost:4566
+        AWS_REGION: us-east-1
+        AWS_ACCESS_KEY_ID: test
+        AWS_SECRET_ACCESS_KEY: test
+        DATABASE_URL: postgres://workshop:workshop@localhost:5432/workshop?sslmode=disable
+      run: |
+        go test -v -tags=integration ./...
+
+  benchmark:
+    name: Performance Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION_LATEST }}
+        cache: true
+    
+    - name: Run benchmarks
+      run: |
+        go test -bench=. -benchmem -benchtime=10s ./benchmarks/... | tee bench.txt
+        
+    - name: Store benchmark result
+      uses: benchmark-action/github-action-benchmark@v1
+      with:
+        tool: 'go'
+        output-file-path: bench.txt
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        auto-push: true
+
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'trivy-results.sarif'
+    
+    - name: Run gosec security scanner
+      uses: securego/gosec@master
+      with:
+        args: '-fmt sarif -out gosec-results.sarif ./...'
+    
+    - name: Upload gosec results
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'gosec-results.sarif'
+
+  lint:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION_LATEST }}
+        cache: true
+    
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: latest
+        args: --timeout 5m
+
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Build workshop image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: false
+        tags: workshop:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64,linux/arm64
+
+  validate-workshop:
+    name: Validate Workshop Content
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION_LATEST }}
+        cache: true
+    
+    - name: Validate setup scripts
+      run: |
+        bash -n setup/check-environment.sh
+        shellcheck setup/*.sh || true
+    
+    - name: Check workshop structure
+      run: |
+        # Verify all required files exist
+        for file in README.md SETUP.org docker-compose.yml Makefile; do
+          if [ ! -f "$file" ]; then
+            echo "Missing required file: $file"
+            exit 1
+          fi
+        done
+    
+    - name: Test workshop exercises
+      run: |
+        # Run workshop validation tests
+        go test -v ./test/workshop/...
