@@ -1,0 +1,33 @@
+# Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+bin/
+
+# Test binary
+*.test
+
+# Output of go coverage
+*.out
+
+# Dependency directories
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+
+# Generated files
+images/*.png
+dist/
+
+# OS
+.DS_Store
+Thumbs.db
