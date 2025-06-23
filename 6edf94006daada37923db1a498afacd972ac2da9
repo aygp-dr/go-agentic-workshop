@@ -1,0 +1,24 @@
+Benchmark design considerations:
+- Cover all performance dimensions students will encounter
+- Platform-specific baselines prevent confusion
+- Cost-performance tradeoffs made explicit
+- Memory usage patterns for resource planning
+
+Key metrics chosen:
+- Tokens/second: Industry standard for LLM performance
+- Latency percentiles: User experience impact
+- Memory allocation: Container sizing requirements
+- Cost per operation: Budget planning
+- Cache hit rates: Optimization effectiveness
+
+Real-world scenarios:
+- Small frequent requests (chatbots)
+- Large batch processing (document analysis)
+- High concurrency (production APIs)
+- Memory accumulation (long-running agents)
+
+Workshop value:
+- Students can benchmark their own code
+- Compare different strategies quantitatively
+- Understand platform limitations before deployment
+- Make data-driven architecture decisions
