@@ -1,0 +1,25 @@
+Cost tracking implementation insights:
+- Real pricing data from AWS Bedrock (2024 rates)
+- Budget system prevents workshop cost overruns
+- Per-workflow tracking enables chargeback models
+- Alert system teaches proactive monitoring
+
+Optimization engine strategy:
+- Pattern detection based on production anti-patterns
+- Specific, actionable recommendations with code examples
+- Priority system focuses on highest-impact changes
+- Effort estimates help with planning
+
+Common student mistakes addressed:
+- Using expensive models for simple tasks
+- Not implementing caching
+- Ignoring streaming for long responses
+- No cost monitoring until bill arrives
+- Over-provisioning in development
+
+Workshop exercises enabled:
+- Compare model costs for same task
+- Implement caching and measure savings
+- Set budgets and trigger alerts
+- Optimize prompts for cost reduction
+- Project monthly costs for business cases
