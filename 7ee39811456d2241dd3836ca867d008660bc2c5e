@@ -1,0 +1,18 @@
+Test utility design rationale:
+- Platform detection critical for workshop success across environments
+- Mock clients enable offline development and consistent testing
+- Configurable latency simulates real-world conditions
+- Cost tracking in mocks teaches financial awareness early
+
+Platform considerations tested:
+- macOS ARM64: Fast but may have different tool availability
+- Linux ARM64 (RPi): Resource constrained, needs conservative limits
+- FreeBSD: Docker unavailable, different networking stack
+- Replit: Severe resource limits, no Docker, shared environment
+- Codespaces: Container networking, different service names
+
+Mock design principles:
+- Realistic response patterns based on actual LLM behavior
+- Failure injection for teaching error handling
+- State tracking for debugging student code
+- Performance characteristics match production services
