@@ -1,0 +1,16 @@
+Workshop contingency planning:
+- Container fallback for incompatible local environments
+- Multi-stage build keeps image size manageable for slow networks
+- Alpine base works on all architectures we target
+- Health check enables Kubernetes/Swarm deployments
+
+Security considerations:
+- Non-root user prevents privilege escalation
+- Minimal surface area with Alpine
+- No sensitive data in image layers
+- AWS credentials must be mounted, not baked in
+
+Performance notes:
+- Build cache important for workshop iterations
+- Layer ordering optimizes for code changes
+- Binary compilation in separate stage for caching
