@@ -26,3 +26,11 @@ if command -v ollama &> /dev/null; then
 else
     echo "❌ Ollama not found"
 fi
+
+# Check golangci-lint
+if command -v golangci-lint &> /dev/null; then
+    LINT_VERSION=$(golangci-lint --version | awk '{print $4}')
+    echo "✓ golangci-lint installed (version: $LINT_VERSION)"
+else
+    echo "❌ golangci-lint not found. Run 'make lint' for installation instructions."
+fi
