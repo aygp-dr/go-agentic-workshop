@@ -61,28 +61,34 @@ func (m *MockLLMClient) SetFailureRate(rate float64) {
 	m.failureRate = rate
 }
 
+// SetCostPerToken sets the cost per token for cost estimation
+func (m *MockLLMClient) SetCostPerToken(cost float64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.costPerToken = cost
+}
+
 // Call simulates an LLM API call
 func (m *MockLLMClient) Call(ctx context.Context, prompt string) (string, error) {
 	m.mu.Lock()
 	m.callCount[prompt]++
-	count := m.callCount[prompt]
 	latency := m.latency
 	m.mu.Unlock()
-	
+
 	// Simulate latency
 	select {
 	case <-ctx.Done():
 		return "", ctx.Err()
 	case <-time.After(latency):
 	}
-	
+
 	// Check for specific errors
 	m.mu.RLock()
 	if err, ok := m.errors[prompt]; ok {
 		m.mu.RUnlock()
 		return "", err
 	}
-	
+
 	// Check for specific responses
 	for pattern, response := range m.responses {
 		if strings.Contains(prompt, pattern) {
@@ -92,11 +98,11 @@ func (m *MockLLMClient) Call(ctx context.Context, prompt string) (string, error)
 		}
 	}
 	m.mu.RUnlock()
-	
+
 	// Default response based on prompt content
 	response := m.generateDefaultResponse(prompt)
 	m.updateTokenCount(len(prompt) + len(response))
-	
+
 	return response, nil
 }
 
@@ -213,32 +219,32 @@ func (r *MockFunctionRegistry) Execute(ctx context.Context, name string, args ma
 		r.mu.Unlock()
 		return nil, fmt.Errorf("function not found: %s", name)
 	}
-	
+
 	fn.CallCount++
 	fn.LastArgs = args
 	r.functions[name] = fn
 	r.mu.Unlock()
-	
+
 	start := time.Now()
-	
+
 	// Simulate latency
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case <-time.After(fn.Latency):
 	}
-	
+
 	// Check if should error
 	if fn.ShouldError {
 		err := fmt.Errorf(fn.ErrorMsg)
 		r.logCall(name, args, nil, err, time.Since(start))
 		return nil, err
 	}
-	
+
 	// Execute handler
 	result, err := fn.Handler(args)
 	r.logCall(name, args, result, err, time.Since(start))
-	
+
 	return result, err
 }
 
@@ -283,9 +289,9 @@ func (r *MockFunctionRegistry) logCall(name string, args map[string]interface{},
 
 // MockWorkflowState provides test workflow state management
 type MockWorkflowState struct {
-	mu       sync.RWMutex
-	states   map[string]interface{}
-	history  []StateChange
+	mu      sync.RWMutex
+	states  map[string]interface{}
+	history []StateChange
 }
 
 // StateChange represents a state transition
@@ -316,10 +322,10 @@ func (s *MockWorkflowState) Get(key string) (interface{}, bool) {
 func (s *MockWorkflowState) Set(key string, value interface{}) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	oldValue := s.states[key]
 	s.states[key] = value
-	
+
 	s.history = append(s.history, StateChange{
 		Key:       key,
 		OldValue:  oldValue,
