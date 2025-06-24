@@ -1,5 +1,9 @@
 # Go Agentic Workshop - Building Production AI Agents
 
+![Go Version](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat&logo=go)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Status](https://img.shields.io/badge/status-draft-orange)
+
 A hands-on workshop for GopherCon 2025 focused on building production-ready AI agents using Go, AWS Bedrock, and modern orchestration patterns.
 
 ## Prerequisites
@@ -62,3 +66,48 @@ Stop services:
 ```bash
 make docker-down
 ```
+
+## Contributing
+
+We welcome contributions! This project is developed and tested on multiple platforms.
+
+### Supported Platforms
+
+| Platform | Architecture | Go Version | Status |
+|----------|--------------|------------|---------|
+| Linux (Raspberry Pi) | ARM64/aarch64 | 1.23.0+ | ✅ Tested |
+| Linux (x86_64) | AMD64 | 1.23.0+ | ✅ Supported |
+| FreeBSD | AMD64 | 1.23.0+ | ✅ Supported |
+| macOS | ARM64/AMD64 | 1.23.0+ | ✅ Supported |
+| Windows | AMD64 | 1.23.0+ | 🔄 Experimental |
+
+### Development Environment
+
+The project is primarily developed on:
+- **OS**: Linux 6.12.20+rpt-rpi-v8 (Debian-based)
+- **Architecture**: ARM64/aarch64
+- **Go Version**: 1.23.0
+- **Platform**: Raspberry Pi
+
+### Getting Started
+
+1. Ensure you have Go 1.23 or later installed
+2. Fork the repository
+3. Create a feature branch (`git checkout -b feature/amazing-feature`)
+4. Commit your changes (`git commit -m 'feat: add amazing feature'`)
+5. Push to the branch (`git push origin feature/amazing-feature`)
+6. Open a Pull Request
+
+### Commit Convention
+
+We use [Conventional Commits](https://www.conventionalcommits.org/):
+- `feat:` New features
+- `fix:` Bug fixes
+- `docs:` Documentation changes
+- `test:` Test additions or modifications
+- `refactor:` Code refactoring
+- `chore:` Maintenance tasks
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
