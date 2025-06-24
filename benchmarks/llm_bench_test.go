@@ -388,7 +388,11 @@ func BenchmarkCostOptimization(b *testing.B) {
 				prompts := make([]string, strategy.batchSize)
 				for j := 0; j < strategy.batchSize; j++ {
 					// Some prompts repeat to simulate cache scenarios
-					prompts[j] = fmt.Sprintf("prompt_%d", j%(strategy.batchSize/2))
+					divisor := strategy.batchSize/2
+					if divisor <= 0 {
+						divisor = 1
+					}
+					prompts[j] = fmt.Sprintf("prompt_%d", j%divisor)
 				}
 
 				for _, prompt := range prompts {
