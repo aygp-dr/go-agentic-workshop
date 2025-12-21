@@ -14,30 +14,30 @@ type ErrorType string
 
 const (
 	// Infrastructure errors
-	ErrorTypeNetwork      ErrorType = "NETWORK"
-	ErrorTypeAWS          ErrorType = "AWS"
-	ErrorTypeDatabase     ErrorType = "DATABASE"
-	ErrorTypeDocker       ErrorType = "DOCKER"
-	
+	ErrorTypeNetwork  ErrorType = "NETWORK"
+	ErrorTypeAWS      ErrorType = "AWS"
+	ErrorTypeDatabase ErrorType = "DATABASE"
+	ErrorTypeDocker   ErrorType = "DOCKER"
+
 	// LLM errors
 	ErrorTypeLLMTimeout   ErrorType = "LLM_TIMEOUT"
 	ErrorTypeLLMRateLimit ErrorType = "LLM_RATE_LIMIT"
 	ErrorTypeLLMInvalid   ErrorType = "LLM_INVALID"
 	ErrorTypeLLMCost      ErrorType = "LLM_COST"
-	
+
 	// Agent errors
-	ErrorTypeAgentState   ErrorType = "AGENT_STATE"
-	ErrorTypeAgentLoop    ErrorType = "AGENT_LOOP"
-	ErrorTypeAgentMemory  ErrorType = "AGENT_MEMORY"
-	
+	ErrorTypeAgentState  ErrorType = "AGENT_STATE"
+	ErrorTypeAgentLoop   ErrorType = "AGENT_LOOP"
+	ErrorTypeAgentMemory ErrorType = "AGENT_MEMORY"
+
 	// Function errors
 	ErrorTypeFunctionNotFound ErrorType = "FUNCTION_NOT_FOUND"
 	ErrorTypeFunctionExec     ErrorType = "FUNCTION_EXEC"
 	ErrorTypeFunctionTimeout  ErrorType = "FUNCTION_TIMEOUT"
-	
+
 	// Validation errors
-	ErrorTypeValidation   ErrorType = "VALIDATION"
-	ErrorTypePermission   ErrorType = "PERMISSION"
+	ErrorTypeValidation ErrorType = "VALIDATION"
+	ErrorTypePermission ErrorType = "PERMISSION"
 )
 
 // AgentError provides rich error context for debugging
@@ -97,17 +97,17 @@ func Wrap(err error, errorType ErrorType, message string) *AgentError {
 	if err == nil {
 		return nil
 	}
-	
+
 	agentErr := New(errorType, message)
 	agentErr.Wrapped = err
-	
+
 	// If wrapping another AgentError, preserve context
 	if ae, ok := err.(*AgentError); ok {
 		for k, v := range ae.Context {
-			agentErr.WithContext(k, v)
+			_ = agentErr.WithContext(k, v)
 		}
 	}
-	
+
 	return agentErr
 }
 
@@ -123,7 +123,7 @@ func AWSError(service string, operation string, err error) *AgentError {
 	e := Wrap(err, ErrorTypeAWS, fmt.Sprintf("AWS %s operation failed", service)).
 		WithContext("service", service).
 		WithContext("operation", operation)
-	
+
 	// Add specific suggestions based on error
 	if strings.Contains(err.Error(), "credentials") {
 		e.Suggestion = "Check AWS credentials: aws configure list"
@@ -131,7 +131,7 @@ func AWSError(service string, operation string, err error) *AgentError {
 		e.Suggestion = "Request throttled, implement exponential backoff"
 		e.Retryable = true
 	}
-	
+
 	return e
 }
 
@@ -139,7 +139,7 @@ func AWSError(service string, operation string, err error) *AgentError {
 func LLMError(errorType ErrorType, model string, err error) *AgentError {
 	e := Wrap(err, errorType, "LLM request failed").
 		WithContext("model", model)
-	
+
 	switch errorType {
 	case ErrorTypeLLMTimeout:
 		e.Suggestion = "Increase timeout or reduce prompt size"
@@ -149,7 +149,7 @@ func LLMError(errorType ErrorType, model string, err error) *AgentError {
 	case ErrorTypeLLMCost:
 		e.Suggestion = "Consider using a smaller model or caching responses"
 	}
-	
+
 	return e
 }
 
@@ -192,24 +192,24 @@ func (h *ErrorHandler) Handle(ctx context.Context, err error) error {
 	if err == nil {
 		return nil
 	}
-	
+
 	agentErr, ok := err.(*AgentError)
 	if !ok {
 		agentErr = Wrap(err, ErrorTypeNetwork, err.Error())
 	}
-	
+
 	// Call error callback
 	if h.OnError != nil {
 		h.OnError(ctx, agentErr)
 	}
-	
+
 	return agentErr
 }
 
 // Retry executes a function with retry logic
 func (h *ErrorHandler) Retry(ctx context.Context, fn func() error) error {
 	var lastErr error
-	
+
 	for attempt := 0; attempt <= h.MaxRetries; attempt++ {
 		if attempt > 0 {
 			select {
@@ -218,20 +218,20 @@ func (h *ErrorHandler) Retry(ctx context.Context, fn func() error) error {
 			case <-time.After(h.RetryDelay * time.Duration(attempt)):
 			}
 		}
-		
+
 		err := fn()
 		if err == nil {
 			return nil
 		}
-		
+
 		lastErr = err
-		
+
 		// Check if error is retryable
 		if agentErr, ok := err.(*AgentError); ok && !agentErr.Retryable {
 			return err
 		}
 	}
-	
+
 	return Wrap(lastErr, ErrorTypeNetwork, "Max retries exceeded").
 		WithContext("max_retries", h.MaxRetries)
 }

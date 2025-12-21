@@ -16,20 +16,20 @@ import (
 )
 
 type ValidationResult struct {
-	Component   string `json:"component"`
-	Status      string `json:"status"`
-	Version     string `json:"version,omitempty"`
-	Message     string `json:"message,omitempty"`
-	Required    bool   `json:"required"`
-	FixCommand  string `json:"fix_command,omitempty"`
+	Component  string `json:"component"`
+	Status     string `json:"status"`
+	Version    string `json:"version,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Required   bool   `json:"required"`
+	FixCommand string `json:"fix_command,omitempty"`
 }
 
 type SystemInfo struct {
-	OS           string `json:"os"`
-	Arch         string `json:"arch"`
-	GoVersion    string `json:"go_version"`
-	CPUs         int    `json:"cpus"`
-	TotalMemory  string `json:"total_memory"`
+	OS          string `json:"os"`
+	Arch        string `json:"arch"`
+	GoVersion   string `json:"go_version"`
+	CPUs        int    `json:"cpus"`
+	TotalMemory string `json:"total_memory"`
 }
 
 var results []ValidationResult
@@ -40,7 +40,7 @@ func main() {
 	fmt.Println()
 
 	ctx := context.Background()
-	
+
 	// System information
 	sysInfo := getSystemInfo()
 	fmt.Printf("📊 System: %s/%s, %d CPUs\n", sysInfo.OS, sysInfo.Arch, sysInfo.CPUs)
@@ -53,25 +53,25 @@ func main() {
 	validateDocker()
 	validateAWSCLI()
 	validateMake()
-	
+
 	// Workshop specific tools
 	fmt.Println("\n🛠️  Checking Workshop Tools:")
 	validateOllama()
 	validateLocalStack()
 	validatePostgreSQL()
-	
+
 	// Network connectivity
 	fmt.Println("\n🌐 Checking Network Connectivity:")
 	validateNetwork()
-	
+
 	// AWS configuration
 	fmt.Println("\n☁️  Checking AWS Configuration:")
 	validateAWSConfig(ctx)
-	
+
 	// Disk space
 	fmt.Println("\n💽 Checking Disk Space:")
 	validateDiskSpace()
-	
+
 	// Generate report
 	generateReport()
 }
@@ -90,7 +90,7 @@ func validateGo() {
 		Component: "Go",
 		Required:  true,
 	}
-	
+
 	cmd := exec.Command("go", "version")
 	output, err := cmd.Output()
 	if err != nil {
@@ -101,7 +101,7 @@ func validateGo() {
 		version := strings.TrimSpace(string(output))
 		result.Status = "✅"
 		result.Version = extractVersion(version, "go")
-		
+
 		// Check minimum version
 		if !isVersionSupported(result.Version, "1.21") {
 			result.Status = "⚠️"
@@ -109,7 +109,7 @@ func validateGo() {
 			result.FixCommand = getGoInstallCommand()
 		}
 	}
-	
+
 	results = append(results, result)
 	printResult(result)
 }
@@ -119,7 +119,7 @@ func validateDocker() {
 		Component: "Docker",
 		Required:  true,
 	}
-	
+
 	cmd := exec.Command("docker", "--version")
 	output, err := cmd.Output()
 	if err != nil {
@@ -138,7 +138,7 @@ func validateDocker() {
 			result.Version = extractVersion(string(output), "Docker version")
 		}
 	}
-	
+
 	results = append(results, result)
 	printResult(result)
 }
@@ -148,7 +148,7 @@ func validateAWSCLI() {
 		Component: "AWS CLI",
 		Required:  true,
 	}
-	
+
 	cmd := exec.Command("aws", "--version")
 	output, err := cmd.Output()
 	if err != nil {
@@ -159,7 +159,7 @@ func validateAWSCLI() {
 		result.Status = "✅"
 		result.Version = extractVersion(string(output), "aws-cli/")
 	}
-	
+
 	results = append(results, result)
 	printResult(result)
 }
@@ -169,7 +169,7 @@ func validateMake() {
 		Component: "Make",
 		Required:  true,
 	}
-	
+
 	cmd := exec.Command("make", "--version")
 	output, err := cmd.Output()
 	if err != nil {
@@ -180,7 +180,7 @@ func validateMake() {
 		result.Status = "✅"
 		result.Version = strings.Split(string(output), "\n")[0]
 	}
-	
+
 	results = append(results, result)
 	printResult(result)
 }
@@ -190,7 +190,7 @@ func validateOllama() {
 		Component: "Ollama",
 		Required:  false,
 	}
-	
+
 	// Check if Ollama is installed
 	cmd := exec.Command("ollama", "--version")
 	output, err := cmd.Output()
@@ -201,7 +201,7 @@ func validateOllama() {
 	} else {
 		result.Status = "✅"
 		result.Version = strings.TrimSpace(string(output))
-		
+
 		// Check if Ollama is running
 		resp, err := http.Get("http://localhost:11434/api/tags")
 		if err != nil {
@@ -209,10 +209,10 @@ func validateOllama() {
 			result.Message = "Ollama installed but not running"
 			result.FixCommand = "ollama serve"
 		} else {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		}
 	}
-	
+
 	results = append(results, result)
 	printResult(result)
 }
@@ -222,7 +222,7 @@ func validateLocalStack() {
 		Component: "LocalStack",
 		Required:  false,
 	}
-	
+
 	// Check if LocalStack container exists
 	cmd := exec.Command("docker", "ps", "-a", "--format", "{{.Names}}")
 	output, err := cmd.Output()
@@ -233,7 +233,7 @@ func validateLocalStack() {
 		result.Status = "ℹ️"
 		result.Message = "LocalStack container not found (will be created by docker-compose)"
 	}
-	
+
 	results = append(results, result)
 	printResult(result)
 }
@@ -243,7 +243,7 @@ func validatePostgreSQL() {
 		Component: "PostgreSQL (pgvector)",
 		Required:  false,
 	}
-	
+
 	// Check for pgvector container
 	cmd := exec.Command("docker", "images", "--format", "{{.Repository}}:{{.Tag}}")
 	output, err := cmd.Output()
@@ -254,35 +254,35 @@ func validatePostgreSQL() {
 		result.Status = "ℹ️"
 		result.Message = "pgvector image not found (will be pulled by docker-compose)"
 	}
-	
+
 	results = append(results, result)
 	printResult(result)
 }
 
 func validateNetwork() {
 	endpoints := map[string]string{
-		"GitHub":       "https://api.github.com",
-		"AWS":          "https://aws.amazon.com",
-		"Docker Hub":   "https://hub.docker.com",
-		"Go Packages":  "https://proxy.golang.org",
+		"GitHub":      "https://api.github.com",
+		"AWS":         "https://aws.amazon.com",
+		"Docker Hub":  "https://hub.docker.com",
+		"Go Packages": "https://proxy.golang.org",
 	}
-	
+
 	for name, url := range endpoints {
 		result := ValidationResult{
 			Component: fmt.Sprintf("Network: %s", name),
 			Required:  true,
 		}
-		
+
 		client := &http.Client{Timeout: 5 * time.Second}
 		resp, err := client.Get(url)
 		if err != nil {
 			result.Status = "❌"
 			result.Message = fmt.Sprintf("Cannot reach %s", url)
 		} else {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			result.Status = "✅"
 		}
-		
+
 		results = append(results, result)
 		printResult(result)
 	}
@@ -293,7 +293,7 @@ func validateAWSConfig(ctx context.Context) {
 		Component: "AWS Credentials",
 		Required:  true,
 	}
-	
+
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
 		result.Status = "❌"
@@ -311,7 +311,7 @@ func validateAWSConfig(ctx context.Context) {
 			result.Version = cfg.Region
 		}
 	}
-	
+
 	results = append(results, result)
 	printResult(result)
 }
@@ -321,11 +321,11 @@ func validateDiskSpace() {
 		Component: "Disk Space",
 		Required:  true,
 	}
-	
+
 	// This is a simplified check - in production you'd use syscall
 	result.Status = "ℹ️"
 	result.Message = "Ensure at least 10GB free space for workshop materials"
-	
+
 	results = append(results, result)
 	printResult(result)
 }
@@ -333,36 +333,36 @@ func validateDiskSpace() {
 func printResult(result ValidationResult) {
 	status := result.Status
 	component := result.Component
-	
+
 	if result.Required {
 		component += " (required)"
 	}
-	
+
 	fmt.Printf("%s %-30s", status, component)
-	
+
 	if result.Version != "" {
 		fmt.Printf(" %s", result.Version)
 	}
-	
+
 	if result.Message != "" {
 		fmt.Printf("\n   └─ %s", result.Message)
 	}
-	
+
 	if result.FixCommand != "" && result.Status != "✅" {
 		fmt.Printf("\n   └─ Fix: %s", result.FixCommand)
 	}
-	
+
 	fmt.Println()
 }
 
 func generateReport() {
 	fmt.Println("\n" + strings.Repeat("=", 50))
-	
+
 	required := 0
 	requiredOK := 0
 	optional := 0
 	optionalOK := 0
-	
+
 	for _, r := range results {
 		if r.Required {
 			required++
@@ -376,17 +376,17 @@ func generateReport() {
 			}
 		}
 	}
-	
+
 	fmt.Printf("\n📋 Summary: %d/%d required components OK\n", requiredOK, required)
 	fmt.Printf("           %d/%d optional components OK\n", optionalOK, optional)
-	
+
 	if requiredOK < required {
 		fmt.Println("\n⚠️  Some required components are missing!")
 		fmt.Println("Please install missing components before starting the workshop.")
 	} else {
 		fmt.Println("\n✅ Your environment is ready for the workshop!")
 	}
-	
+
 	// Save detailed report
 	reportFile := "validation-report.json"
 	data, _ := json.MarshalIndent(map[string]interface{}{
@@ -394,7 +394,7 @@ func generateReport() {
 		"system":    getSystemInfo(),
 		"results":   results,
 	}, "", "  ")
-	
+
 	if err := os.WriteFile(reportFile, data, 0644); err == nil {
 		fmt.Printf("\n📄 Detailed report saved to: %s\n", reportFile)
 	}

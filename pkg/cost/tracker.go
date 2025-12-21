@@ -71,11 +71,11 @@ type Usage struct {
 
 // CostTracker tracks LLM usage and costs
 type CostTracker struct {
-	mu            sync.RWMutex
-	usage         []Usage
-	budgets       map[string]*Budget
-	alerts        []Alert
-	optimization  *OptimizationEngine
+	mu           sync.RWMutex
+	usage        []Usage
+	budgets      map[string]*Budget
+	alerts       []Alert
+	optimization *OptimizationEngine
 }
 
 // Budget represents spending limits
@@ -112,7 +112,7 @@ func NewCostTracker() *CostTracker {
 func (t *CostTracker) Track(ctx context.Context, usage Usage) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	
+
 	// Calculate cost if not provided
 	if usage.Cost == 0 {
 		if pricing, ok := ModelPricing[usage.ModelID]; ok {
@@ -120,16 +120,16 @@ func (t *CostTracker) Track(ctx context.Context, usage Usage) error {
 				(float64(usage.OutputTokens)/1000)*pricing.OutputPer1K
 		}
 	}
-	
+
 	usage.Timestamp = time.Now()
 	t.usage = append(t.usage, usage)
-	
+
 	// Check budgets
 	t.checkBudgets(usage)
-	
+
 	// Update optimization recommendations
 	t.optimization.Update(usage)
-	
+
 	return nil
 }
 
@@ -137,7 +137,7 @@ func (t *CostTracker) Track(ctx context.Context, usage Usage) error {
 func (t *CostTracker) SetBudget(name string, budget *Budget) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	
+
 	budget.Name = name
 	budget.PeriodStart = time.Now()
 	t.budgets[name] = budget
@@ -147,10 +147,10 @@ func (t *CostTracker) SetBudget(name string, budget *Budget) {
 func (t *CostTracker) GetCurrentCosts() map[string]float64 {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	
+
 	costs := make(map[string]float64)
 	now := time.Now()
-	
+
 	// Aggregate by model
 	for _, u := range t.usage {
 		// Only count recent usage based on budget periods
@@ -158,12 +158,12 @@ func (t *CostTracker) GetCurrentCosts() map[string]float64 {
 			costs[u.ModelID] += u.Cost
 		}
 	}
-	
+
 	costs["total"] = 0
 	for _, cost := range costs {
 		costs["total"] += cost
 	}
-	
+
 	return costs
 }
 
@@ -171,19 +171,19 @@ func (t *CostTracker) GetCurrentCosts() map[string]float64 {
 func (t *CostTracker) GetUsageReport(start, end time.Time) *UsageReport {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	
+
 	report := &UsageReport{
 		StartTime:     start,
 		EndTime:       end,
 		ModelUsage:    make(map[string]*ModelStats),
 		WorkflowUsage: make(map[string]*WorkflowStats),
 	}
-	
+
 	for _, u := range t.usage {
 		if u.Timestamp.Before(start) || u.Timestamp.After(end) {
 			continue
 		}
-		
+
 		// Model stats
 		if _, ok := report.ModelUsage[u.ModelID]; !ok {
 			report.ModelUsage[u.ModelID] = &ModelStats{
@@ -198,7 +198,7 @@ func (t *CostTracker) GetUsageReport(start, end time.Time) *UsageReport {
 		if u.Cached {
 			stats.CacheHits++
 		}
-		
+
 		// Workflow stats
 		if u.WorkflowID != "" {
 			if _, ok := report.WorkflowUsage[u.WorkflowID]; !ok {
@@ -211,12 +211,12 @@ func (t *CostTracker) GetUsageReport(start, end time.Time) *UsageReport {
 			wstats.TotalCost += u.Cost
 			wstats.TotalTokens += u.TotalTokens
 		}
-		
+
 		report.TotalCost += u.Cost
 		report.TotalRequests++
 		report.TotalTokens += u.TotalTokens
 	}
-	
+
 	// Calculate averages and rates
 	for _, stats := range report.ModelUsage {
 		if stats.Requests > 0 {
@@ -226,7 +226,7 @@ func (t *CostTracker) GetUsageReport(start, end time.Time) *UsageReport {
 			stats.CacheHitRate = float64(stats.CacheHits) / float64(stats.Requests)
 		}
 	}
-	
+
 	return report
 }
 
@@ -234,7 +234,7 @@ func (t *CostTracker) GetUsageReport(start, end time.Time) *UsageReport {
 func (t *CostTracker) GetOptimizations() []Recommendation {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	
+
 	return t.optimization.GetRecommendations()
 }
 
@@ -246,9 +246,9 @@ func (t *CostTracker) checkBudgets(usage Usage) {
 			budget.CurrentSpend = 0
 			budget.PeriodStart = time.Now()
 		}
-		
+
 		budget.CurrentSpend += usage.Cost
-		
+
 		// Check limits
 		if budget.CurrentSpend > budget.Limit {
 			t.alerts = append(t.alerts, Alert{
@@ -267,7 +267,7 @@ func (t *CostTracker) checkBudgets(usage Usage) {
 				Value:     budget.CurrentSpend,
 			})
 		}
-		
+
 		// Check per-workflow limit
 		if usage.WorkflowID != "" && budget.WorkflowLimit > 0 {
 			workflowCost := t.getWorkflowCost(usage.WorkflowID)
@@ -299,7 +299,7 @@ func (t *CostTracker) getWorkflowCost(workflowID string) float64 {
 func (t *CostTracker) GetAlerts(since time.Time) []Alert {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	
+
 	alerts := make([]Alert, 0)
 	for _, alert := range t.alerts {
 		if alert.Timestamp.After(since) {
@@ -313,41 +313,41 @@ func (t *CostTracker) GetAlerts(since time.Time) []Alert {
 func (t *CostTracker) ExportMetrics() string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	
+
 	costs := t.GetCurrentCosts()
 	metrics := "# HELP llm_cost_total Total cost by model\n"
 	metrics += "# TYPE llm_cost_total counter\n"
-	
+
 	for model, cost := range costs {
 		if model != "total" {
 			metrics += fmt.Sprintf("llm_cost_total{model=\"%s\"} %.4f\n", model, cost)
 		}
 	}
-	
+
 	metrics += "\n# HELP llm_requests_total Total requests by model\n"
 	metrics += "# TYPE llm_requests_total counter\n"
-	
+
 	requestCounts := make(map[string]int)
 	for _, u := range t.usage {
 		requestCounts[u.ModelID]++
 	}
-	
+
 	for model, count := range requestCounts {
 		metrics += fmt.Sprintf("llm_requests_total{model=\"%s\"} %d\n", model, count)
 	}
-	
+
 	return metrics
 }
 
 // UsageReport contains detailed usage statistics
 type UsageReport struct {
-	StartTime      time.Time
-	EndTime        time.Time
-	TotalCost      float64
-	TotalRequests  int
-	TotalTokens    int
-	ModelUsage     map[string]*ModelStats
-	WorkflowUsage  map[string]*WorkflowStats
+	StartTime     time.Time
+	EndTime       time.Time
+	TotalCost     float64
+	TotalRequests int
+	TotalTokens   int
+	ModelUsage    map[string]*ModelStats
+	WorkflowUsage map[string]*WorkflowStats
 }
 
 // ModelStats contains per-model statistics

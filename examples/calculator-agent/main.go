@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/aygp-dr/go-agentic-workshop/pkg/bedrock"
 	"github.com/aygp-dr/go-agentic-workshop/pkg/cost"
@@ -28,7 +29,7 @@ func main() {
 	fmt.Println()
 
 	ctx := context.Background()
-	
+
 	// Initialize components
 	agent, err := setupAgent(ctx)
 	if err != nil {
@@ -50,27 +51,27 @@ func main() {
 		if !scanner.Scan() {
 			break
 		}
-		
+
 		input := strings.TrimSpace(scanner.Text())
 		if input == "quit" || input == "exit" {
 			break
 		}
-		
+
 		if input == "cost" {
 			showCostReport(agent.tracker)
 			continue
 		}
-		
+
 		// Process the query
 		response, err := agent.Process(ctx, input)
 		if err != nil {
 			fmt.Printf("❌ Error: %v\n", err)
 			continue
 		}
-		
+
 		fmt.Printf("🔢 %s\n\n", response)
 	}
-	
+
 	fmt.Println("\n👋 Goodbye!")
 	showCostReport(agent.tracker)
 }
@@ -81,16 +82,16 @@ func setupAgent(ctx context.Context) (*CalculatorAgent, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, errors.ErrorTypeAWS, "Failed to create Bedrock client")
 	}
-	
+
 	// Initialize function registry
 	registry := functions.NewRegistry()
-	
+
 	// Register calculator functions
 	registerCalculatorFunctions(registry)
-	
+
 	// Initialize cost tracker
 	tracker := cost.NewCostTracker()
-	
+
 	return &CalculatorAgent{
 		llm:      llmClient,
 		registry: registry,
@@ -100,7 +101,7 @@ func setupAgent(ctx context.Context) (*CalculatorAgent, error) {
 
 func registerCalculatorFunctions(registry *functions.Registry) {
 	// Basic arithmetic
-	registry.Register(&functions.Function{
+	_ = registry.Register(&functions.Function{
 		Name:        "add",
 		Description: "Add two numbers",
 		Parameters: json.RawMessage(`{
@@ -117,8 +118,8 @@ func registerCalculatorFunctions(registry *functions.Registry) {
 			return a + b, nil
 		},
 	})
-	
-	registry.Register(&functions.Function{
+
+	_ = registry.Register(&functions.Function{
 		Name:        "subtract",
 		Description: "Subtract two numbers",
 		Parameters: json.RawMessage(`{
@@ -135,8 +136,8 @@ func registerCalculatorFunctions(registry *functions.Registry) {
 			return a - b, nil
 		},
 	})
-	
-	registry.Register(&functions.Function{
+
+	_ = registry.Register(&functions.Function{
 		Name:        "multiply",
 		Description: "Multiply two numbers",
 		Parameters: json.RawMessage(`{
@@ -153,8 +154,8 @@ func registerCalculatorFunctions(registry *functions.Registry) {
 			return a * b, nil
 		},
 	})
-	
-	registry.Register(&functions.Function{
+
+	_ = registry.Register(&functions.Function{
 		Name:        "divide",
 		Description: "Divide two numbers",
 		Parameters: json.RawMessage(`{
@@ -180,30 +181,29 @@ func registerCalculatorFunctions(registry *functions.Registry) {
 func (a *CalculatorAgent) Process(ctx context.Context, query string) (string, error) {
 	// Build prompt with available functions
 	prompt := a.buildPrompt(query)
-	
+
 	// Call LLM
-	start := time.Now()
 	response, err := a.llm.Invoke(ctx, &bedrock.InvokeRequest{
-		ModelID: "anthropic.claude-3-haiku",
-		Prompt:  prompt,
+		ModelID:   "anthropic.claude-3-haiku",
+		Prompt:    prompt,
 		MaxTokens: 500,
 	})
 	if err != nil {
 		return "", errors.LLMError(errors.ErrorTypeLLMInvalid, "claude-3-haiku", err)
 	}
-	
+
 	// Track usage
 	usage := cost.Usage{
 		ModelID:      "anthropic.claude-3-haiku",
-		InputTokens:  len(prompt) / 4,  // Rough estimate
+		InputTokens:  len(prompt) / 4, // Rough estimate
 		OutputTokens: len(response.Content) / 4,
 		WorkflowID:   "calculator-demo",
 	}
-	a.tracker.Track(ctx, usage)
-	
+	_ = a.tracker.Track(ctx, usage)
+
 	// Parse LLM response for function calls
 	functionCalls, explanation := a.parseLLMResponse(response.Content)
-	
+
 	// Execute function calls
 	results := make([]string, 0)
 	for _, call := range functionCalls {
@@ -213,27 +213,27 @@ func (a *CalculatorAgent) Process(ctx context.Context, query string) (string, er
 		}
 		results = append(results, fmt.Sprintf("%s = %v", call.Display, result))
 	}
-	
+
 	// Format final response
 	if len(results) > 0 {
-		return fmt.Sprintf("%s\n\nCalculations:\n%s", 
-			explanation, 
+		return fmt.Sprintf("%s\n\nCalculations:\n%s",
+			explanation,
 			strings.Join(results, "\n")), nil
 	}
-	
+
 	return explanation, nil
 }
 
 // FunctionCall represents a parsed function call
 type FunctionCall struct {
-	Name     string
-	Args     map[string]interface{}
-	Display  string
+	Name    string
+	Args    map[string]interface{}
+	Display string
 }
 
 func (a *CalculatorAgent) buildPrompt(query string) string {
 	functionsJSON, _ := json.MarshalIndent(a.registry.GetManifest(), "", "  ")
-	
+
 	return fmt.Sprintf(`You are a helpful calculator assistant. 
 You have access to the following mathematical functions:
 
@@ -264,13 +264,13 @@ func (a *CalculatorAgent) parseLLMResponse(content string) ([]FunctionCall, stri
 		Explanation   string         `json:"explanation"`
 		FunctionCalls []FunctionCall `json:"function_calls"`
 	}
-	
+
 	// Try to parse JSON response
 	if err := json.Unmarshal([]byte(content), &response); err != nil {
 		// Fallback to plain text
 		return nil, content
 	}
-	
+
 	return response.FunctionCalls, response.Explanation
 }
 
@@ -282,15 +282,15 @@ func showCostReport(tracker *cost.CostTracker) {
 	costs := tracker.GetCurrentCosts()
 	fmt.Println("\n💰 Cost Report:")
 	fmt.Println("─────────────────")
-	
+
 	for model, cost := range costs {
 		if model != "total" {
 			fmt.Printf("%-30s: $%.4f\n", model, cost)
 		}
 	}
-	
+
 	fmt.Printf("%-30s: $%.4f\n", "TOTAL", costs["total"])
-	
+
 	// Show optimization suggestions
 	recommendations := tracker.GetOptimizations()
 	if len(recommendations) > 0 {

@@ -288,12 +288,12 @@ func BenchmarkPlatformSpecific(b *testing.B) {
 
 			// Platform-specific latency settings
 			latencies := map[string]time.Duration{
-				"darwin/arm64":  20 * time.Millisecond,   // M1/M2 fast
-				"darwin/amd64": 30 * time.Millisecond,    // Intel Mac
-				"linux/amd64":  50 * time.Millisecond,    // Standard Linux
-				"linux/arm64":  100 * time.Millisecond,   // RPi slower
-				"freebsd/amd64": 40 * time.Millisecond,   // FreeBSD performance
-				"windows/amd64": 60 * time.Millisecond,   // Windows performance
+				"darwin/arm64":  20 * time.Millisecond,  // M1/M2 fast
+				"darwin/amd64":  30 * time.Millisecond,  // Intel Mac
+				"linux/amd64":   50 * time.Millisecond,  // Standard Linux
+				"linux/arm64":   100 * time.Millisecond, // RPi slower
+				"freebsd/amd64": 40 * time.Millisecond,  // FreeBSD performance
+				"windows/amd64": 60 * time.Millisecond,  // Windows performance
 			}
 
 			// Apply platform-specific latency or use default
@@ -315,7 +315,7 @@ func BenchmarkPlatformSpecific(b *testing.B) {
 					if err != nil {
 						b.Fatal(err)
 					}
-					
+
 					// Validate we got a meaningful response
 					if len(response) == 0 {
 						b.Fatal("Empty response received")
@@ -377,7 +377,7 @@ func BenchmarkCostOptimization(b *testing.B) {
 		b.Run(strategy.name, func(b *testing.B) {
 			client := testutil.NewMockLLMClient()
 			client.SetCostPerToken(modelCosts[strategy.modelSize])
-			
+
 			cache := make(map[string]string)
 			cacheHits := 0
 			totalCost := 0.0
@@ -388,7 +388,11 @@ func BenchmarkCostOptimization(b *testing.B) {
 				prompts := make([]string, strategy.batchSize)
 				for j := 0; j < strategy.batchSize; j++ {
 					// Some prompts repeat to simulate cache scenarios
-					prompts[j] = fmt.Sprintf("prompt_%d", j%(strategy.batchSize/2))
+					divisor := strategy.batchSize / 2
+					if divisor == 0 {
+						divisor = 1
+					}
+					prompts[j] = fmt.Sprintf("prompt_%d", j%divisor)
 				}
 
 				for _, prompt := range prompts {

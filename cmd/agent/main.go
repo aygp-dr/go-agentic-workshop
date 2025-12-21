@@ -21,7 +21,7 @@ func main() {
 	fmt.Println("AI Agent Workshop Starting...")
 
 	config := loadConfig()
-	
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -40,7 +40,7 @@ func main() {
 
 	fmt.Printf("Agent initialized with region: %s\n", config.Region)
 	fmt.Printf("Using model: %s\n", config.ModelID)
-	
+
 	<-ctx.Done()
 	fmt.Println("Agent stopped")
 }

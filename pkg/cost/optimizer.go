@@ -23,24 +23,24 @@ type UsagePattern struct {
 
 // ModelAnalysis tracks model-specific metrics
 type ModelAnalysis struct {
-	ModelID            string
-	AvgPromptLength    int
-	AvgResponseLength  int
-	RepetitivePrompts  int
-	LongPrompts        int
-	ShortResponses     int
-	ErrorRate          float64
-	AvgLatency         time.Duration
+	ModelID           string
+	AvgPromptLength   int
+	AvgResponseLength int
+	RepetitivePrompts int
+	LongPrompts       int
+	ShortResponses    int
+	ErrorRate         float64
+	AvgLatency        time.Duration
 }
 
 // Recommendation represents an optimization suggestion
 type Recommendation struct {
-	Priority    string  // high, medium, low
-	Type        string  // model_switch, caching, batching, prompt_optimization
+	Priority    string // high, medium, low
+	Type        string // model_switch, caching, batching, prompt_optimization
 	Title       string
 	Description string
-	Impact      string  // Estimated savings
-	Effort      string  // easy, medium, hard
+	Impact      string // Estimated savings
+	Effort      string // easy, medium, hard
 	Example     string
 }
 
@@ -59,16 +59,16 @@ func (e *OptimizationEngine) Update(usage Usage) {
 			ModelID: usage.ModelID,
 		}
 	}
-	
+
 	analysis := e.modelAnalysis[usage.ModelID]
-	
+
 	// Update averages (simplified - in production use proper running averages)
 	promptLength := usage.InputTokens * 4 // Approximate chars
 	responseLength := usage.OutputTokens * 4
-	
+
 	analysis.AvgPromptLength = (analysis.AvgPromptLength + promptLength) / 2
 	analysis.AvgResponseLength = (analysis.AvgResponseLength + responseLength) / 2
-	
+
 	// Detect patterns
 	if promptLength > 8000 {
 		analysis.LongPrompts++
@@ -81,7 +81,7 @@ func (e *OptimizationEngine) Update(usage Usage) {
 // GetRecommendations returns optimization recommendations
 func (e *OptimizationEngine) GetRecommendations() []Recommendation {
 	recommendations := make([]Recommendation, 0)
-	
+
 	// Analyze each model's usage
 	for modelID, analysis := range e.modelAnalysis {
 		// Check for expensive model with simple use case
@@ -92,7 +92,7 @@ func (e *OptimizationEngine) GetRecommendations() []Recommendation {
 				Title:    "Switch to Cheaper Model",
 				Description: fmt.Sprintf(
 					"Model %s is being used for short responses (avg %d chars). "+
-					"Consider using Claude Haiku or Titan Express for 80%% cost reduction.",
+						"Consider using Claude Haiku or Titan Express for 80%% cost reduction.",
 					modelID, analysis.AvgResponseLength,
 				),
 				Impact: "Save $0.012 per 1K tokens",
@@ -104,7 +104,7 @@ client.Call(ctx, prompt, WithModel("claude-3-sonnet"))
 client.Call(ctx, prompt, WithModel("claude-3-haiku"))`,
 			})
 		}
-		
+
 		// Check for caching opportunities
 		if analysis.RepetitivePrompts > 10 {
 			recommendations = append(recommendations, Recommendation{
@@ -126,32 +126,32 @@ response := client.Call(ctx, prompt)
 cache.Set(promptHash, response, 1*time.Hour)`,
 			})
 		}
-		
+
 		// Check for prompt optimization
 		if analysis.LongPrompts > 5 && analysis.ShortResponses > 5 {
 			recommendations = append(recommendations, Recommendation{
-				Priority: "medium",
-				Type:     "prompt_optimization",
-				Title:    "Optimize Prompt Length",
+				Priority:    "medium",
+				Type:        "prompt_optimization",
+				Title:       "Optimize Prompt Length",
 				Description: "Long prompts are generating short responses. Consider prompt compression or summarization.",
-				Impact:  "Save 30-50% on input tokens",
-				Effort:  "medium",
+				Impact:      "Save 30-50% on input tokens",
+				Effort:      "medium",
 				Example: `// Use prompt templates:
 template := "Summarize in 50 words: {{.Content}}"
 // Instead of including full context every time`,
 			})
 		}
 	}
-	
+
 	// Add general recommendations
 	recommendations = append(recommendations, e.getGeneralRecommendations()...)
-	
+
 	// Sort by priority
 	sort.Slice(recommendations, func(i, j int) bool {
 		priority := map[string]int{"high": 3, "medium": 2, "low": 1}
 		return priority[recommendations[i].Priority] > priority[recommendations[j].Priority]
 	})
-	
+
 	return recommendations
 }
 
@@ -159,23 +159,23 @@ template := "Summarize in 50 words: {{.Content}}"
 func (e *OptimizationEngine) getGeneralRecommendations() []Recommendation {
 	return []Recommendation{
 		{
-			Priority: "medium",
-			Type:     "batching",
-			Title:    "Batch Similar Requests",
+			Priority:    "medium",
+			Type:        "batching",
+			Title:       "Batch Similar Requests",
 			Description: "Group similar prompts into batches to reduce overhead and improve throughput.",
-			Impact:   "10-20% latency reduction",
-			Effort:   "medium",
+			Impact:      "10-20% latency reduction",
+			Effort:      "medium",
 			Example: `// Batch process multiple items:
 prompts := []string{prompt1, prompt2, prompt3}
 responses := client.BatchCall(ctx, prompts)`,
 		},
 		{
-			Priority: "low",
-			Type:     "streaming",
-			Title:    "Enable Response Streaming",
+			Priority:    "low",
+			Type:        "streaming",
+			Title:       "Enable Response Streaming",
 			Description: "Use streaming for long responses to improve perceived latency.",
-			Impact:   "50% faster time-to-first-token",
-			Effort:   "easy",
+			Impact:      "50% faster time-to-first-token",
+			Effort:      "easy",
 			Example: `// Enable streaming:
 stream := client.CallStream(ctx, prompt)
 for chunk := range stream {
@@ -183,24 +183,24 @@ for chunk := range stream {
 }`,
 		},
 		{
-			Priority: "medium",
-			Type:     "local_model",
-			Title:    "Use Local Models for Development",
+			Priority:    "medium",
+			Type:        "local_model",
+			Title:       "Use Local Models for Development",
 			Description: "Run Ollama locally for development and testing to eliminate API costs.",
-			Impact:   "100% cost reduction in dev",
-			Effort:   "easy",
+			Impact:      "100% cost reduction in dev",
+			Effort:      "easy",
 			Example: `// Development config:
 if os.Getenv("ENV") == "development" {
     client = ollama.NewClient("llama3:8b")
 }`,
 		},
 		{
-			Priority: "high",
-			Type:     "monitoring",
-			Title:    "Implement Cost Alerts",
+			Priority:    "high",
+			Type:        "monitoring",
+			Title:       "Implement Cost Alerts",
 			Description: "Set up automated alerts for unusual spending patterns.",
-			Impact:   "Prevent bill shock",
-			Effort:   "easy",
+			Impact:      "Prevent bill shock",
+			Effort:      "easy",
 			Example: `// Set daily budget:
 tracker.SetBudget("daily", &Budget{
     Limit: 10.00,
@@ -252,11 +252,11 @@ func (o *CostOptimizer) SuggestModelForUseCase(useCase string) ModelSuggestion {
 			CostSavings: "100% cost reduction",
 		},
 	}
-	
+
 	if suggestion, ok := suggestions[useCase]; ok {
 		return suggestion
 	}
-	
+
 	return ModelSuggestion{
 		ModelID:     "anthropic.claude-3-haiku",
 		Reason:      "Good default balance",
@@ -277,22 +277,21 @@ func (o *CostOptimizer) EstimateMonthlyCost(dailyRequests int, avgTokensPerReque
 	if !ok {
 		return CostEstimate{Error: "Unknown model"}
 	}
-	
+
 	// Assume 60/40 input/output split
 	inputTokens := avgTokensPerRequest * 60 / 100
 	outputTokens := avgTokensPerRequest * 40 / 100
-	
-	dailyCost := float64(dailyRequests) * (
-		(float64(inputTokens)/1000)*pricing.InputPer1K +
+
+	dailyCost := float64(dailyRequests) * ((float64(inputTokens)/1000)*pricing.InputPer1K +
 		(float64(outputTokens)/1000)*pricing.OutputPer1K)
-	
+
 	monthlyCost := dailyCost * 30
-	
+
 	return CostEstimate{
-		DailyCost:      dailyCost,
-		MonthlyCost:    monthlyCost,
-		YearlyCost:     monthlyCost * 12,
-		BreakdownInput: monthlyCost * 0.3, // Input typically 30% of cost
+		DailyCost:       dailyCost,
+		MonthlyCost:     monthlyCost,
+		YearlyCost:      monthlyCost * 12,
+		BreakdownInput:  monthlyCost * 0.3, // Input typically 30% of cost
 		BreakdownOutput: monthlyCost * 0.7, // Output typically 70% of cost
 	}
 }
